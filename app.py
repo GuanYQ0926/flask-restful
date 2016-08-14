@@ -1,4 +1,6 @@
-from flask import Flask, jsonify, abort, make_response, request
+from flask import Flask, jsonify, abort, make_response, \
+    request, url_for
+from flask.ext.httpauth import HTTPBasicAuth
 
 app = Flask(__name__)
 
@@ -18,7 +20,34 @@ tasks = [
 ]
 
 
+def make_public_task(task):
+    new_task = {}
+    for field in task:
+        if field == 'id':
+            new_task['uri'] = url_for(
+                'get_task', task_id=['id'], _external=True)
+        else:
+            new_task[field] = task[field]
+    return new_task
+
+
+auth = HTTPBasicAuth()
+
+
+@auth.get_password
+def get_password(username):
+    if username == 'miguel':
+        return 'python'
+    return None
+
+
+@auth.error_handler
+def unauthorized():
+    return make_response(jsonify({'error': 'unauthorized access'}), 403)
+
+
 @app.route('/todo/api/v1.0/tasks', methods=['GET'])
+@auth.login_required
 def get_tasks():
     return jsonify({'tasks': tasks})
 
@@ -59,7 +88,8 @@ def update_task(task_id):
         abort(400)
     if 'title' in request.json and type(request.json['title']) != unicode:
         abort(400)
-    if 'description' in request.json and type(request.json['description']) is not unicode:
+    if 'description' in request.json and \
+            type(request.json['description']) is not unicode:
         abort(400)
     if 'done' in request.json and type(request.json['done']) is not bool:
         abort(400)
@@ -77,7 +107,6 @@ def delete_task(task_id):
         abort(404)
     tasks.remove(task[0])
     return jsonify({'result': True})
-
 
 if __name__ == '__main__':
     app.run(debug=True)
